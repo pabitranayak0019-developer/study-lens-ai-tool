@@ -1,9 +1,7 @@
 /* Vercel serverless function — POST /api/generate
-   Proxies requests to Google Gemini.
-   Key comes ONLY from GEMINI_API_KEY env var (Vercel dashboard). */
+   Proxies requests to Google Gemini with bullet-proof text sanitization. */
 "use strict";
 
-// ---- Tiny .env loader (local dev convenience) ------------------------------
 function loadDotEnv() {
   try {
     const fs = require("fs");
@@ -21,20 +19,34 @@ function loadDotEnv() {
       }
       if (key && !(key in process.env)) process.env[key] = value;
     }
-  } catch (_) { /* no .env — fine */ }
+  } catch (_) {}
 }
 loadDotEnv();
 
-// ---- The actual Gemini call (uses only "contents", no system_instruction) ---
-async function callGemini(model, apiKey, fullPrompt) {
+// Strip control chars, null bytes, and other JSON-breaking characters
+function sanitize(text) {
+  return String(text || "")
+    .replace(/[\0\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")  // control chars
+    .replace(/\uFFFD/g, "")                                    // replacement char
+    .replace(/\s+/g, " ")                                     // collapse whitespace
+    .trim();
+}
+
+// Truncate prompt to stay within API limits (keep question visible)
+function truncatePrompt(system, prompt, maxLen) {
+  const header = system + "\n\n---\n\n";
+  if ((header + prompt).length <= maxLen) return header + prompt;
+  // Keep system + first part of doc + full question
+  const qLines = prompt.split("\n");
+  const question = qLines.pop() || "";
+  const docPart = prompt.slice(0, maxLen - header.length - question.length - 200);
+  return header + docPart + "\n\n...\n\n" + question;
+}
+
+async function geminiRequest(model, apiKey, fullPrompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body = {
     contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-    generationConfig: {
-      temperature: 0.55,
-      maxOutputTokens: 4096,
-      topP: 0.95,
-    },
   };
   const res = await fetch(url, {
     method: "POST",
@@ -45,55 +57,66 @@ async function callGemini(model, apiKey, fullPrompt) {
   return { status: res.status, data };
 }
 
-// ---- Vercel handler ----------------------------------------------------------
+// Model fallback chain: try requested -> gemini-2.0-flash -> gemini-1.5-flash
+const FALLBACK_MODELS = ["gemini-1.5-flash", "gemini-2.0-flash"];
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: { code: 405, message: "Method not allowed" } });
+    return res.status(405).json({ error: { code: 405, message: "Method not allowed. Use POST." } });
+  }
+
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: { code: 503, message: "GEMINI_API_KEY not set in Vercel environment variables." } });
   }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.status(503).json({ error: { code: 503, message: "GEMINI_API_KEY not set in environment variables." } });
+  if (!body.prompt) {
+    return res.status(400).json({ error: { code: 400, message: "No prompt provided." } });
   }
 
-  // Build the full prompt: system instructions embedded in user message
-  // (avoids model-specific system_instruction compatibility issues)
-  const system = body.system || "You are StudyLens AI, an academic PDF assistant. Answer ONLY from the provided document. Do not hallucinate. If the answer is not in the document, say so clearly.";
-  const fullPrompt = `${system}\n\n---\n\n${body.prompt || ""}`;
+  // Sanitize everything
+  const system = sanitize(body.system || "You are StudyLens AI, an academic PDF assistant. Answer ONLY from the provided document. Do not hallucinate. If the information is not available in the uploaded PDF, clearly say so.");
+  const question = sanitize(body.prompt);
+  const fullPrompt = truncatePrompt(system, question, 28000);
+  const requestedModel = (body.model || "gemini-1.5-flash").trim();
 
-  const model = body.model || "gemini-1.5-flash";
+  // Try models with fallback
+  const modelsToTry = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
+  let lastError = null;
 
-  try {
-    // Try the requested model first
-    let result = await callGemini(model, apiKey, fullPrompt);
+  for (const model of modelsToTry) {
+    try {
+      const result = await geminiRequest(model, apiKey, fullPrompt);
+      const answer = result.data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
 
-    // If 400 error, fallback to gemini-1.5-flash (more compatible)
-    if (result.status === 400 && model !== "gemini-1.5-flash") {
-      result = await callGemini("gemini-1.5-flash", apiKey, fullPrompt);
+      if (result.status >= 200 && result.status < 300 && answer.trim()) {
+        return res.status(200).json({
+          candidates: [{ content: { parts: [{ text: answer.trim() }] } }],
+        });
+      }
+
+      lastError = result.data?.error || { code: result.status, message: `Model ${model} returned ${result.status}` };
+
+      // If it's a 400 or 404 (model not found), try next model
+      if (result.status === 400 || result.status === 404) continue;
+
+      // For other errors (429, 500, etc.), return immediately
+      return res.status(result.status).json(result.data);
+
+    } catch (err) {
+      lastError = { code: 502, message: err.message };
+      continue;
     }
-
-    // Extract answer text
-    let answer = "";
-    if (result.status >= 200 && result.status < 300) {
-      const parts = result.data?.candidates?.[0]?.content?.parts;
-      answer = Array.isArray(parts) ? parts.map((p) => p.text || "").join("") : "";
-    }
-
-    if (result.status >= 200 && result.status < 300 && answer.trim()) {
-      return res.status(200).json({
-        candidates: [{ content: { parts: [{ text: answer.trim() }] } }],
-      });
-    }
-
-    // Forward the Gemini error as-is
-    return res.status(result.status).json(
-      result.data || { error: { code: result.status, message: "Empty or failed response from Gemini." } }
-    );
-
-  } catch (err) {
-    return res.status(502).json({ error: { code: 502, message: err.message } });
   }
+
+  // All models failed — return the last error with context
+  return res.status(lastError?.code || 502).json({
+    error: {
+      code: lastError?.code || 502,
+      message: `All models failed. Last error: ${lastError?.message || "unknown"}`,
+    },
+  });
 };
 
 module.exports.config = { maxDuration: 30 };
