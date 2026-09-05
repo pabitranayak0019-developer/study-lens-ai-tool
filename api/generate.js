@@ -57,7 +57,7 @@ async function geminiRequest(model, apiKey, fullPrompt) {
   return { status: res.status, data };
 }
 
-// Model fallback chain: try requested -> gemini-2.0-flash -> gemini-1.5-flash
+// Model fallback chain — try requested, then to stable models
 const FALLBACK_MODELS = ["gemini-1.5-flash", "gemini-2.0-flash"];
 
 module.exports = async function handler(req, res) {
@@ -79,7 +79,7 @@ module.exports = async function handler(req, res) {
   const system = sanitize(body.system || "You are StudyLens AI, an academic PDF assistant. Answer ONLY from the provided document. Do not hallucinate. If the information is not available in the uploaded PDF, clearly say so.");
   const question = sanitize(body.prompt);
   const fullPrompt = truncatePrompt(system, question, 28000);
-  const requestedModel = (body.model || "gemini-1.5-flash").trim();
+  const requestedModel = (body.model || "gemini-2.0-flash").trim();
 
   // Try models with fallback
   const modelsToTry = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
