@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="StudyLens AI – Turn any PDF into an intelligent AI tutor. Upload your study material, ask questions, take exams and get summaries." />
+  <title>StudyLens AI – Intelligent PDF Q&A</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+
+  <!-- PDF.js (local, no backend required – text extraction runs in the browser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Ambient background particles (animated via JS + canvas) -->
+  <canvas id="fx-particles" aria-hidden="true"></canvas>
+
+  <!-- ======================= NAVBAR ======================= -->
+  <nav class="navbar navbar-expand-lg glass-nav fixed-top" aria-label="Main navigation">
+    <div class="container-fluid px-3 px-lg-4">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#hero">
+        <span class="brand-icon"><i class="bi bi-file-earmark-pdf-fill"></i></span>
+        <span class="brand-text">StudyLens <span class="grad-text">AI</span></span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
+              aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-1">
+          <li class="nav-item"><a class="nav-link" href="#dashboard"><i class="bi bi-chat-dots me-1"></i>PDF Q&A</a></li>
+          <li class="nav-item"><a class="nav-link" href="#exam"><i class="bi bi-journal-check me-1"></i>Exam Mode</a></li>
+          <li class="nav-item"><a class="nav-link" href="#summary"><i class="bi bi-stars me-1"></i>Summary</a></li>
+          <li class="nav-item"><a class="nav-link" href="#about"><i class="bi bi-info-circle me-1"></i>About</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ======================= HERO ======================= -->
+  <header id="hero" class="hero">
+    <div class="hero-glow hero-glow-a" aria-hidden="true"></div>
+    <div class="hero-glow hero-glow-b" aria-hidden="true"></div>
+    <div class="container">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-6 hero-copy">
+          <span class="hero-badge"><i class="bi bi-stars"></i> AI POWERED STUDY ASSISTANT</span>
+          <h1 class="hero-title">Turn Your PDF Into <span class="grad-text">An AI Tutor</span></h1>
+          <p class="hero-sub">
+            Upload your study material, ask questions, and get intelligent answers
+            directly from your document. No account, no backend — everything runs in your browser.
+          </p>
+          <div class="hero-actions d-flex flex-wrap gap-3">
+            <button class="btn btn-ai btn-lg ripple" id="btnHeroUpload">
+              <i class="bi bi-cloud-arrow-up me-2"></i>Upload PDF
+            </button>
+            <button class="btn btn-ghost btn-lg ripple" id="btnDemo">
+              <i class="bi bi-lightning-charge-fill me-2"></i>Try Demo
+            </button>
+          </div>
+          <div class="hero-mini-stats d-flex flex-wrap gap-2 mt-4">
+            <span class="mini-chip"><i class="bi bi-shield-check"></i> 100% Browser-Side</span>
+            <span class="mini-chip"><i class="bi bi-filetype-pdf"></i> PDF Only</span>
+            <span class="mini-chip"><i class="bi bi-gem"></i> Free to Use</span>
+          </div>
+        </div>
+
+        <div class="col-lg-6">
+          <div class="hero-visual" id="heroVisual">
+            <div class="ai-orb" aria-hidden="true"></div>
+            <!-- 3D floating PDF document -->
+            <div class="hero-pdf" aria-hidden="true">
+              <div class="pdf-card-3d">
+                <div class="pdf-doc">
+                  <div class="pdf-doc-bar"><i class="bi bi-file-earmark-pdf-fill"></i> study_notes.pdf</div>
+                  <div class="pdf-doc-line w-100"></div>
+                  <div class="pdf-doc-line w-90"></div>
+                  <div class="pdf-doc-line w-75"></div>
+                  <div class="pdf-doc-line w-85"></div>
+                  <div class="pdf-doc-line w-60 short"></div>
+                  <div class="pdf-doc-chart" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                  <div class="pdf-doc-line w-80"></div>
+                  <div class="pdf-doc-line w-50 short"></div>
+                </div>
+              </div>
+            </div>
+            <!-- Scan beam -->
+            <div class="scan-beam" aria-hidden="true">
+              <div class="scan-line"></div>
+            </div>
+            <!-- Animation pipeline: PDF -> Analysis -> Answer -->
+            <div class="hero-flow" aria-hidden="true">
+              <div class="flow-step">
+                <span class="flow-ico"><i class="bi bi-upc-scan"></i></span>
+                <span class="flow-label">AI Analysis</span>
+              </div>
+              <div class="flow-step">
+                <span class="flow-ico glow"><i class="bi bi-stars"></i></span>
+                <span class="flow-label">AI Answer</span>
+              </div>
+            </div>
+            <div class="float-chip chip-a"><i class="bi bi-question-circle-fill"></i> Ask anything…</div>
+            <div class="float-chip chip-b"><i class="bi bi-check2-circle"></i> Context selected from pages 3, 7, 9</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================= MAIN DASHBOARD ======================= -->
+  <main id="dashboard" class="section">
+    <div class="container">
+      <div class="row g-4">
+
+        <!-- LEFT COLUMN :: Upload + document info -->
+        <div class="col-lg-3">
+          <div class="card glass-card mb-4">
+            <div class="card-body">
+              <h6 class="card-title-small"><i class="bi bi-cloud-arrow-up me-2"></i>Upload PDF</h6>
+              <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Drop your PDF here or click to browse">
+                <div class="dz-icon"><i class="bi bi-file-earmark-pdf"></i></div>
+                <div class="dz-title" id="dzTitle">Drop your PDF here</div>
+                <div class="dz-hint">or click to browse</div>
+                <input type="file" id="fileInput" accept="application/pdf,.pdf" hidden />
+              </div>
+              <!-- Upload / processing progress -->
+              <div id="progressWrap" class="progress-wrap d-none">
+                <div class="progress glass-progress">
+                  <div class="progress-bar progress-bar-gradient" id="uploadProgress" style="width:0%"></div>
+                </div>
+                <div class="progress-label" id="progressLabel">Uploading… 0%</div>
+              </div>
+              <!-- Processing status checklist -->
+              <ul id="statusList" class="status-list d-none">
+                <li class="st st-upload"><i class="bi bi-circle"></i> PDF uploaded</li>
+                <li class="st st-extract"><i class="bi bi-circle"></i> Text extracted</li>
+                <li class="st st-ready"><i class="bi bi-circle"></i> Ready for questions</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- File information -->
+          <div class="card glass-card mb-4 d-none" id="fileInfoCard">
+            <div class="card-body">
+              <h6 class="card-title-small"><i class="bi bi-file-earmark-text-fill me-2"></i>Document</h6>
+              <div class="file-info">
+                <div class="file-icon"><i class="bi bi-file-earmark-pdf-fill"></i></div>
+                <div class="file-meta">
+                  <div class="file-name" id="fileName"></div>
+                  <div class="file-sub" id="fileSize"></div>
+                </div>
+                <span class="file-badge" id="fileStatusBadge">Processing</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card glass-card">
+            <div class="card-body">
+              <h6 class="card-title-small"><i class="bi bi-magic me-2"></i>Quick Actions</h6>
+              <div class="d-grid gap-2">
+                <button class="btn btn-outline-ai ripple" id="btnGoExam"><i class="bi bi-journal-check me-1"></i>Exam Mode</button>
+                <button class="btn btn-outline-ai ripple" id="btnGoSummary"><i class="bi bi-stars me-1"></i>Smart Summary</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CENTER COLUMN :: AI Chat -->
+        <div class="col-lg-6">
+          <div class="card glass-card chat-card">
+            <div class="chat-header">
+              <div class="d-flex align-items-center gap-2">
+                <span class="chat-orb"><i class="bi bi-robot"></i></span>
+                <div>
+                  <h5 class="mb-0 chat-title">Ask Your Document</h5>
+                  <div class="chat-doc-name" id="chatDocName"><i class="bi bi-file-earmark-pdf"></i> No PDF loaded</div>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-icon-chat ripple" id="btnSuggestionOpen" title="Suggested questions" aria-label="Suggested questions"><i class="bi bi-lightbulb"></i></button>
+                <button class="btn btn-sm btn-icon-chat ripple" id="btnSavePdf" title="Save answers as PDF" aria-label="Save answers as PDF"><i class="bi bi-file-earmark-arrow-down"></i></button>
+                <button class="btn btn-sm btn-icon-chat ripple" id="btnClearChat" title="Clear chat" aria-label="Clear chat"><i class="bi bi-trash3"></i></button>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div class="chat-empty" id="chatEmpty">
+              <div class="empty-ico">&#128196;</div>
+              <h5>Your AI tutor is waiting</h5>
+              <p>Upload a PDF to start asking questions.</p>
+              <button class="btn btn-outline-ai ripple btn-sm" id="btnEmptyUpload"><i class="bi bi-cloud-arrow-up me-1"></i>Upload PDF</button>
+            </div>
+
+            <!-- Messages -->
+            <div class="chat-body" id="chatBody" aria-live="polite"></div>
+
+            <!-- Suggested question chips -->
+            <div class="suggestions-wrap" id="suggestionsWrap">
+              <div class="sugg-label"><i class="bi bi-lightbulb"></i> Suggested</div>
+              <div class="suggestions">
+                <button class="sugg-chip ripple" data-q="What are the most important topics in this PDF?">Important Topics</button>
+                <button class="sugg-chip ripple" data-q="Give me 10 important exam questions from this document.">Exam Questions</button>
+                <button class="sugg-chip ripple" data-q="Summarize the first unit of this document in simple language.">Summarize Unit</button>
+                <button class="sugg-chip ripple" data-q="Explain this chapter in very simple language with an example.">Explain Simply</button>
+                <button class="sugg-chip ripple" data-q="Create 20 MCQs with answers based on this PDF.">Generate MCQs</button>
+                <button class="sugg-chip ripple" data-q="Give me short revision notes from this document.">Revision Notes</button>
+              </div>
+            </div>
+
+            <!-- Composer -->
+            <div class="chat-composer">
+              <div class="composer-row">
+                <button class="btn mic-btn ripple" id="btnMic" title="Voice question" aria-label="Voice question">
+                  <i class="bi bi-mic-fill"></i>
+                </button>
+                <textarea id="questionInput" class="question-input" rows="1"
+                          placeholder="Ask anything about this PDF…" aria-label="Ask a question"></textarea>
+                <button class="btn btn-ai send-btn ripple" id="btnAsk" aria-label="Ask AI">
+                  <i class="bi bi-send-fill"></i>
+                </button>
+              </div>
+              <div class="composer-foot">
+                <span class="sr-voice d-none" id="srVoice"><i class="bi bi-mic-fill"></i> Listening…</span>
+                <span class="composer-note"><i class="bi bi-shield-lock"></i> Answers come only from your uploaded document</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN :: Document Insights -->
+        <div class="col-lg-3">
+          <div class="card glass-card mb-4">
+            <div class="card-body">
+              <h6 class="card-title-small"><i class="bi bi-graph-up-arrow me-2"></i>Document Insights</h6>
+              <div class="insights-grid" id="insightsGrid">
+                <div class="insight-tile"><div class="ins-ic bg-blue"><i class="bi bi-file-earmark"></i></div><div class="ins-num count-num" data-target="0" id="insPages">0</div><div class="ins-label">Pages</div></div>
+                <div class="insight-tile"><div class="ins-ic bg-purple"><i class="bi bi-type"></i></div><div class="ins-num count-num" data-target="0" id="insWords">0</div><div class="ins-label">Words</div></div>
+                <div class="insight-tile"><div class="ins-ic bg-cyan"><i class="bi bi-fonts"></i></div><div class="ins-num count-num" data-target="0" id="insChars">0</div><div class="ins-label">Characters</div></div>
+                <div class="insight-tile"><div class="ins-ic bg-pink"><i class="bi bi-clock-history"></i></div><div class="ins-num" id="insTime">–</div><div class="ins-label">Reading Time</div></div>
+                <div class="insight-tile"><div class="ins-ic bg-green"><i class="bi bi-collection"></i></div><div class="ins-num" id="insUnits">0</div><div class="ins-label">Detected Units</div></div>
+                <div class="insight-tile"><div class="ins-ic bg-orange"><i class="bi bi-chat-square-quote"></i></div><div class="ins-num count-num" data-target="0" id="insAsked">0</div><div class="ins-label">Questions Asked</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card mb-4">
+            <div class="card-body">
+              <h6 class="card-title-small"><i class="bi bi-tags me-2"></i>Detected Units</h6>
+              <div id="unitList" class="unit-list">
+                <span class="text-muted small">Upload a PDF to auto-detect units, chapters and sections.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass-card status-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2">
+                <span class="status-dot" id="statusDot"></span>
+                <span class="status-text" id="statusText">Awaiting PDF</span>
+              </div>
+              <div class="small text-muted mt-2" id="statusHint">Drop a PDF anywhere on this page.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======================= EXAM MODE ======================= -->
+  <section id="exam" class="section">
+    <div class="container">
+      <div class="section-head text-center mb-5">
+        <span class="hero-badge mx-auto"><i class="bi bi-journal-check"></i> EXAM GENERATOR</span>
+        <h2 class="section-title">Exam <span class="grad-text">Mode</span></h2>
+        <p class="section-sub">Generate a practice exam with questions created <b>only</b> from your uploaded PDF.</p>
+      </div>
+
+      <div class="card glass-card exam-config mb-4">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label">Questions</label>
+              <select class="form-select glass-select" id="examCount">
+                <option value="5">5 Questions</option>
+                <option value="10" selected>10 Questions</option>
+                <option value="20">20 Questions</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Difficulty</label>
+              <select class="form-select glass-select" id="examDifficulty">
+                <option value="Easy">Easy</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Type</label>
+              <select class="form-select glass-select" id="examType">
+                <option value="Mixed" selected>Mixed</option>
+                <option value="MCQ">MCQ</option>
+                <option value="Short Answer">Short Answer</option>
+                <option value="Long Answer">Long Answer</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3 d-flex align-items-end">
+              <button class="btn btn-ai ripple w-100" id="btnGenerateExam"><i class="bi bi-magic me-2"></i>Generate Exam</button>
+            </div>
+          </div>
+          <div class="form-note mt-3"><i class="bi bi-info-circle me-1"></i>You must upload a PDF first. Questions are generated from the document's content only.</div>
+        </div>
+      </div>
+
+      <div id="examResults" class="exam-results"></div>
+      <div id="examEmpty" class="exam-empty">
+        <div class="empty-ico">&#128214;</div>
+        <h5>No exam yet</h5>
+        <p>Configure your exam and hit <b>Generate Exam</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= SUMMARY MODE ======================= -->
+  <section id="summary" class="section">
+    <div class="container">
+      <div class="section-head text-center mb-5">
+        <span class="hero-badge mx-auto"><i class="bi bi-stars"></i> SMART SUMMARY</span>
+        <h2 class="section-title">Smart <span class="grad-text">Summary</span></h2>
+        <p class="section-sub">Turn a whole chapter into crisp revision-ready study notes in one click.</p>
+      </div>
+
+      <div class="row g-4 mb-4">
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="chapter">
+            <i class="bi bi-journal-text"></i><span>Chapter Summary</span>
+          </button>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="unit">
+            <i class="bi bi-collection"></i><span>Unit-wise Summary</span>
+          </button>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="concepts">
+            <i class="bi bi-key"></i><span>Key Concepts</span>
+          </button>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="definitions">
+            <i class="bi bi-book"></i><span>Important Definitions</span>
+          </button>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="revision">
+            <i class="bi bi-lightning-charge"></i><span>Exam Revision Notes</span>
+          </button>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+          <button class="sum-card ripple" data-sum="mcqs">
+            <i class="bi bi-list-check"></i><span>20 MCQs</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="summaryOutput" class="summary-output d-none">
+        <div class="card glass-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="card-title-small mb-0"><i class="bi bi-stars me-2"></i><span id="summaryLabel">Summary</span></h6>
+              <button class="btn btn-sm btn-icon-chat ripple" id="btnCopySummary" title="Copy to clipboard"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="ai-content" id="summaryText"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= ABOUT ======================= -->
+  <section id="about" class="section">
+    <div class="container">
+      <div class="section-head text-center mb-5">
+        <span class="hero-badge mx-auto"><i class="bi bi-info-circle"></i> ABOUT</span>
+        <h2 class="section-title">How <span class="grad-text">StudyLens</span> Works</h2>
+      </div>
+      <div class="row g-4">
+        <div class="col-md-6 col-lg-3">
+          <div class="card glass-card about-card h-100">
+            <div class="about-num">01</div>
+            <i class="bi bi-file-earmark-pdf-fill about-ic"></i>
+            <h6>Upload PDF</h6>
+            <p class="small text-muted">Your PDF never leaves the browser. StudyLens parses and extracts text locally using PDF.js.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="card glass-card about-card h-100">
+            <div class="about-num">02</div>
+            <i class="bi bi-upc-scan about-ic"></i>
+            <h6>AI Analysis</h6>
+            <p class="small text-muted">The relevant sections of your document are selected and sent to the Gemini AI as context.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="card glass-card about-card h-100">
+            <div class="about-num">03</div>
+            <i class="bi bi-chat-dots-fill about-ic"></i>
+            <h6>Ask Question</h6>
+            <p class="small text-muted">Type, voice, or pick a suggested question in any language — Odia, Hindi, English and more.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="card glass-card about-card h-100">
+            <div class="about-num">04</div>
+            <i class="bi bi-robot about-ic"></i>
+            <h6>Intelligent Answer</h6>
+            <p class="small text-muted">Get exam-focused, reference-based answers with key points — no hallucination, document-only.</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="small text-muted mb-0 mt-2">
+        StudyLens runs 100% in your browser and keeps your PDF private.
+        AI requests go through an optional backend proxy that protects the API key.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================= FOOTER ======================= -->
+  <footer class="footer">
+    <div class="container">
+      <div class="row align-items-center g-3">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="brand-icon"><i class="bi bi-file-earmark-pdf-fill"></i></span>
+            <span class="brand-text">StudyLens <span class="grad-text">AI</span></span>
+          </div>
+          <p class="small text-muted mb-0">PDF → AI Analysis → Student Question → Intelligent Answer.</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <p class="small text-muted mb-1">© <span id="year"></span> StudyLens AI — Minor Project · Portfolio · Viva</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast + loading overlay containers -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+  <div id="loadingOverlay" class="loading-overlay d-none">
+    <div class="loader-ring"></div>
+    <div class="loader-text" id="loaderText">Working…</div>
+  </div>
+
+  <!-- Bootstrap 5 JS bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- App logic -->
+  <script src="script.js"></script>
+</body>
+</html>

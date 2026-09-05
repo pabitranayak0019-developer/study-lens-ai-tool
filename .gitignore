@@ -1,0 +1,15 @@
+# Secrets — NEVER commit any of these (they hold your Gemini API key)
+apikey.txt
+*.key
+*.pem
+.env
+.env.*
+!.env.example
+secrets/
+
+# Local dev
+node_modules/
+npm-debug.log
+
+# Vercel
+.vercel/
