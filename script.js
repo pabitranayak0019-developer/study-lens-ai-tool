@@ -38,7 +38,7 @@
 // IMPORTANT: no API key exists anywhere in this frontend. AI requests go
 // through the bundled backend proxy (server.js), which owns the key.
 const CONFIG = {
-  model: "gemini-2.0-flash", // stable & widely available model
+  model: "gemini-3.6-flash", // current stable model (2026)
   temperature: 0.55,
   maxOutputTokens: 4096,
   // When a PDF is small enough we send the whole document as context.
