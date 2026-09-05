@@ -663,6 +663,8 @@ async function extractPdf(arrayBuffer) {
 // Clean raw extracted text: collapse whitespace, drop junk fragments
 function cleanText(raw) {
   return String(raw || "")
+    .replace(/\uFFFD/g, "")                                    // replacement char
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "") // control / null bytes
     .replace(/\s+/g, " ")
     .replace(/[ \t]+\n/g, "\n")
     .trim();
