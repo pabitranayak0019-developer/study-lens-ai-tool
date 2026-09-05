@@ -1,12 +1,9 @@
 /* Vercel serverless function — POST /api/generate
-   Proxies the request to Google Gemini.
-   The API key comes ONLY from the GEMINI_API_KEY environment variable
-   (set in Vercel → Settings → Environment Variables). Never from frontend. */
+   Proxies requests to Google Gemini.
+   Key comes ONLY from GEMINI_API_KEY env var (Vercel dashboard). */
 "use strict";
 
-// ---- Tiny zero-dependency .env loader (local dev only) ---------------------
-// Loads GEMINI_API_KEY from a local `.env` file into process.env (if present).
-// `.env` is git-ignored, and a real environment variable always wins.
+// ---- Tiny .env loader (local dev convenience) ------------------------------
 function loadDotEnv() {
   try {
     const fs = require("fs");
@@ -22,55 +19,81 @@ function loadDotEnv() {
       if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
-      if (key && !(key in process.env)) process.env[key] = value; // real env wins
+      if (key && !(key in process.env)) process.env[key] = value;
     }
-  } catch (_) { /* no .env file present — fine */ }
+  } catch (_) { /* no .env — fine */ }
 }
 loadDotEnv();
 
-// ---- API key resolution (server-side only!) --------------------------------
-const resolveApiKey = () => (process.env.GEMINI_API_KEY || "").trim() || null;
-
-// ---- The Gemini proxy call ---------------------------------------------------
-async function proxyGemini(body) {
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
-    throw Object.assign(new Error("Gemini API key is not configured. Set GEMINI_API_KEY as an environment variable."), { status: 503 });
-  }
-  const model = (body && body.model) || "gemini-2.5-flash";
+// ---- The actual Gemini call (uses only "contents", no system_instruction) ---
+async function callGemini(model, apiKey, fullPrompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  const payload = {
-    system_instruction: { parts: [{ text: body.system || "You are StudyLens AI, an academic PDF assistant. Answer ONLY from the provided document." }] },
-    contents: [{ role: "user", parts: [{ text: body.prompt || "" }] }],
+  const body = {
+    contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
     generationConfig: {
-      temperature: Number.isFinite(body.temperature) ? body.temperature : 0.55,
-      maxOutputTokens: Number.isFinite(body.maxTokens) ? body.maxTokens : 4096,
+      temperature: 0.55,
+      maxOutputTokens: 4096,
       topP: 0.95,
     },
   };
-
-  const gemRes = await fetch(url, {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
-  const data = await gemRes.json().catch(() => null);
-  return { status: gemRes.status, data };
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data };
 }
 
 // ---- Vercel handler ----------------------------------------------------------
 module.exports = async function handler(req, res) {
-  // Vercel Node runtime already parses JSON bodies into req.body
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: { code: 405, message: "Method not allowed" } });
+  }
+
   const body = req.body && typeof req.body === "object" ? req.body : {};
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: { code: 503, message: "GEMINI_API_KEY not set in environment variables." } });
+  }
+
+  // Build the full prompt: system instructions embedded in user message
+  // (avoids model-specific system_instruction compatibility issues)
+  const system = body.system || "You are StudyLens AI, an academic PDF assistant. Answer ONLY from the provided document. Do not hallucinate. If the answer is not in the document, say so clearly.";
+  const fullPrompt = `${system}\n\n---\n\n${body.prompt || ""}`;
+
+  const model = body.model || "gemini-1.5-flash";
+
   try {
-    const { status, data } = await proxyGemini(body);
-    res.status(status).json(data || { error: { code: status, message: "Empty response from Gemini." } });
+    // Try the requested model first
+    let result = await callGemini(model, apiKey, fullPrompt);
+
+    // If 400 error, fallback to gemini-1.5-flash (more compatible)
+    if (result.status === 400 && model !== "gemini-1.5-flash") {
+      result = await callGemini("gemini-1.5-flash", apiKey, fullPrompt);
+    }
+
+    // Extract answer text
+    let answer = "";
+    if (result.status >= 200 && result.status < 300) {
+      const parts = result.data?.candidates?.[0]?.content?.parts;
+      answer = Array.isArray(parts) ? parts.map((p) => p.text || "").join("") : "";
+    }
+
+    if (result.status >= 200 && result.status < 300 && answer.trim()) {
+      return res.status(200).json({
+        candidates: [{ content: { parts: [{ text: answer.trim() }] } }],
+      });
+    }
+
+    // Forward the Gemini error as-is
+    return res.status(result.status).json(
+      result.data || { error: { code: result.status, message: "Empty or failed response from Gemini." } }
+    );
+
   } catch (err) {
-    const status = err.status || 502;
-    res.status(status).json({ error: { code: status, message: err.message } });
+    return res.status(502).json({ error: { code: 502, message: err.message } });
   }
 };
 
-// Gemini answers can take a few seconds — allow up to 30s serverless runtime
 module.exports.config = { maxDuration: 30 };
